@@ -1,7 +1,12 @@
-﻿<#find who login the server in last week
-
+﻿<#find who login the server in last week from Security Log or RDP session LOG -done 11.08 function Get-LastlogonUser
 
 #find which connection that server connect to --user netstat
+1 use netstat -anbo to get the process/network information
+2 use tasklist or get-process to get all the process
+3 get the processs name (which showed Can not obtain ownership information) by match the PID 
+4 show all the incoming /outcomming connection
+
+
 #find which application was installed on that server  --
 #find task schedule 
 #last reboot time and operaot 
@@ -14,7 +19,7 @@
 2 configure/deploy services
 3 troubleshot issue
 4 login application
-5 test for update branch Dev
+
 #>
 
 
@@ -118,7 +123,7 @@ $entries=@()
 if ($SecurityLOG)
 {
 $Logname="Security"
-$msgs=Get-WinEvent -ComputerName $Computername -FilterHashtable @{Logname=$Logname; ID=@(4624);StartTime=$Starttime}| select TimeCreated,ID,Message
+$msgs=Get-WinEvent -ComputerName $Computername -FilterHashtable @{Logname=$Logname; ID=@(4624);StartTime=$Starttime}| select-object TimeCreated,ID,Message
  
     foreach($msg in $msgs)
     {
@@ -147,7 +152,7 @@ $msgs=Get-WinEvent -ComputerName $Computername -FilterHashtable @{Logname=$Logna
 elseif ($RDPLog)
 {
 $Logname="Microsoft-Windows-TerminalServices-LocalSessionManager/Operational"
-$msgs=Get-WinEvent -ComputerName $Computername -FilterHashtable @{Logname=$Logname; ID=@(21);StartTime=$Starttime}| select TimeCreated,ID,Message
+$msgs=Get-WinEvent -ComputerName $Computername -FilterHashtable @{Logname=$Logname; ID=@(21);StartTime=$Starttime}| select-object TimeCreated,ID,Message
 
     foreach($msg in $msgs)
     {
@@ -173,4 +178,61 @@ end
 {
 return $entries
 }
+}
+
+
+function Get-NetworkConnection
+{
+
+    $netstat=netstat -anbo
+
+
+    $rules=@()
+    
+    $talbehead="  Proto  Local Address          Foreign Address        State           PID"
+    if ($netstat -contains $talbehead)
+    {
+    $startline=$netstat.IndexOf($talbehead)
+    for ($rulestart=$startline+1;$rulestart -le 20;$rulestart++)
+    {
+    $rulegroup=""
+    
+        for($ruleend=$rulestart+1;$ruleend -le 20;$ruleend++)
+        {
+        if (($netstat[$ruleend] -match "TCP|UPD") -and ($netstat[$ruleend-1]) -match "\[*\]")
+        {
+            $i=$rulestart
+            $j=$ruleend 
+            for ($i;$i -lt $j;$i++)
+            {
+            if ($i -ne $j-1)
+            {
+        
+            $rulegroup+=$netstat[$i]
+            $rulegroup+="`n"
+            }
+            else
+            {
+           
+            $rulegroup+=$netstat[$i]
+            }
+            }
+            #write "rulegroup is $rulegroup"
+            $rules+=$rulegroup
+            $rulestart=$ruleend-1
+        break
+        }
+    
+        }
+    
+    }
+    
+    }
+    else 
+    {
+    "throw expectioin"
+    }
+    
+
+
 }
